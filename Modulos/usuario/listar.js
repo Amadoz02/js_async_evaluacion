@@ -1,6 +1,6 @@
 import { obtenerDatos } from "../utils/fetch.js";
+import { URL_USUARIOS } from "../utils/urls.js";
 
-const URL_USUARIOS = "https://jsonplaceholder.typicode.com/users";
 
 export const listarUsuarios = async () => {
     return await obtenerDatos(URL_USUARIOS);

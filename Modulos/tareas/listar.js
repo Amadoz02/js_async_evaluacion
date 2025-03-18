@@ -1,6 +1,6 @@
 import { obtenerDatos } from "../utils/fetch.js";
 
-const URL_TODOS = "https://jsonplaceholder.typicode.com/todos";
+import { URL_TODOS } from "../utils/urls.js";
 
 export const listarTareas = async () => {
     try {

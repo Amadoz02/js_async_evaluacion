@@ -1,74 +1,38 @@
 import {listarTareasPendientes} from "../Modulos/tareas/index.js";
 import { listarUsuarios, listarUsuarioPorUsername } from "../Modulos/usuario/index.js";
-import { listarAlbumesPorUsuario } from "../Modulos/albunes/index.js";
-import { listarFotosPorAlbum } from "../Modulos/fotos/index.js";
-const URL = "https://jsonplaceholder.typicode.com";
-
-
-// const manejardatos = async () => {//creamos funcion expresada para manejar los datos de los usuarios
-//     const usuarios =  await getUsuarios(URL);//con ayuda del modulo get usuarios traemos los datos de la url
-//     return await Promise.all(usuarios.map(async(usuario)=>{//funcion asyncronaque espera a que todas susu promesas internas se solucionen para que el codigo continue, 
-//         //con ayuda de map iteramos el arreglo de objetos traido de la url
-//         const posts = await getPost(URL,usuario);//esperamos a que se traigan los datos de los post sin errores 
-//         const comentPost = await Promise.all( posts.map(async(post)=>{
-//             const coments = await getCommets(URL,post);
-//             return {...post,coments};
-//         }));
-
-//         const albuns = await getAlbuns(URL,usuario);
-//         const albunPost = await Promise.all( albuns.map(async(albu)=>{
-//             const fotos = await getFotos(URL,albu);
-//             return {...albu,fotos};
-//         }));
-
-
-//         return {...usuario,comentPost,albunPost};
-        
-
-
-//     }));
-// };
+import { listarAlbumesPorUsuario,listarTodosLosAlbunes } from "../Modulos/albunes/index.js";
+import { listarFotosPorAlbum,listarTodasLasFotos } from "../Modulos/fotos/index.js";
+import { listarPostsPorTitulo, listarTodosLosPosts} from "../Modulos/post/index.js";
+import { listarComentariosPorPost,listarTodosLosComentarios } from "../Modulos/comentarios/index.js";
 
 
 
+const filtrarUsuariosNombreTelefono = async () => {
+    const usuarios = await listarUsuarios();
 
-
-
-// const buscarUsuarios = async (nombreUsuario) => {
-//     const usuarios = await getUsuarios(URL);
-//     const filtroUsuario = usuarios.filter(usuario => usuario.username.toLowerCase() === nombreUsuario.toLowerCase());
-
-    
-//     const resultado = await Promise.all(filtroUsuario.map(async (usuario) => {
-//         const albuns = await getAlbuns(URL, usuario);
-       
-        
-//         const albunsConFotos = await Promise.all(albuns.map(async (album) => {
-//             const fotos = await getFotos(URL, album);
-//             return { ...album, fotos };
-//         }));
-
-        
-        
-
-//         return { ...usuario, albunsConFotos };
-//     }));
-
-//     return resultado;
-// };
-
-
-
-const datosUsuarios=async ()=>{
-    const usuarios =  await getUsuarios(URL);
-    return await Promise.all(usuarios.map(async(usuario)=>{
-        const nombre=usuario.username ;
-        const tel=usuario.phone;
-            return {nombre, tel};
+    return usuarios.map(usuario => ({
+        nombre: usuario.name,
+        telefono: usuario.phone
     }));
 };
 
+const buscarPostsYComentarios = async (titulo) => {
+    const posts = await listarPostsPorTitulo(titulo);
 
+    if (posts.length === 0) {
+        console.log(`No se encontraron posts con el título: ${titulo}`);
+        return;
+    }
+
+    const postsConComentarios = await Promise.all(
+        posts.map(async (post) => ({
+            ...post,
+            comentarios: await listarComentariosPorPost(post.id),
+        }))
+    );
+
+    return postsConComentarios;
+};
 
 
 const usuarios_tareasP = async () => {
@@ -102,50 +66,81 @@ const buscarUsuarioYMostrarAlbumes = async (username) => {
     );
 
 
-    return{ ...usuario, albumes: albumesConFotos };
+    return{ ...usuario, albumesConFotos };
 };
 
 
-let ejecutable=prompt("QUE EJERCICIO DESEAS EJECUTAR: \n\n 1) LISTAR USUARIOS CON SUS TAREAS PENDIENTES\n"
-    +"\n2) INGRESAR NOMBRE DE USUARIO A BUSCAR Y VER INFO Y ALBUNES"
-    +"\n3) INGRESAR NOMBRE DE USUARIO A BUSCAR Y VER INFO Y ALBUNES"
-    +"\n4) INGRESAR NOMBRE DE USUARIO A BUSCAR Y VER INFO Y ALBUNES");
 
-switch (ejecutable) {
-    case "1":
-        usuarios_tareasP().then((data)=>{
-            console.log(data);
-        });
-        break;
+const obtenerUsuariosConTodo = async () => {
+    // Obtener TODOS los datos de una sola vez
+    const [usuarios, posts, comentarios, albumes, fotos] = await Promise.all([
+        listarUsuarios(),
+        listarTodosLosPosts(),
+        listarTodosLosComentarios(),
+        listarTodosLosAlbunes(),
+        listarTodasLasFotos()
+    ]);
 
-    case "2":
-        let nombre= prompt("ingrese el nombre de la persona a buscar: ")
-        buscarUsuarioYMostrarAlbumes(nombre).then((data)=>{
-            console.log(data);
-        });
-        break;
+    //  Unir los datos localmente en memoria
+    return usuarios.map(usuario => {
+        // Filtrar posts del usuario y agregar comentarios
+        const postsDelUsuario = posts.filter(post => post.userId === usuario.id).map(post => ({
+            ...post,
+            comentarios: comentarios.filter(comentario => comentario.postId === post.id)
+        }));
 
-    case "3":
-        listarTareasPendientes().then((data)=>{
-            console.log(data);
-        });
-        break;
+        // Filtrar álbumes del usuario y agregar fotos
+        const albumesDelUsuario = albumes.filter(album => album.userId === usuario.id).map(album => ({
+            ...album,
+            fotos: fotos.filter(foto => foto.albumId === album.id)
+        }));
 
-    case "4":
-        datosUsuarios().then((data)=>{
-            console.log(data);
-        });
-        break;
+        return { ...usuario, postsDelUsuario, albumesDelUsuario };
+    });
+};
 
-    case "5":
-        manejardatos().then((data)=>{
-            console.log(data);
-            
-        })
-        break;
 
-    default:
-       
-        alert("ingrese numeros validos")
-        break;
-}
+
+const menu = async () => {
+    let ejecutable;
+    do {
+        ejecutable = prompt(
+            "QUE EJERCICIO DESEAS EJECUTAR: \n\n" +
+            "0) Salir\n" +
+            "1) LISTAR USUARIOS CON SUS TAREAS PENDIENTES\n" +
+            "2) INGRESAR NOMBRE DE USUARIO A BUSCAR Y VER INFO Y ALBUNES\n" +
+            "3) INGRESAR NOMBRE DE POST A BUSCAR Y VER COMENTARIOS\n" +
+            "4) CONSULTAR USUARIOS Y LISTAR SOLO NOMBRE Y TELÉFONO\n" +
+            "5) LISTAR USUARIOS CON TODOS SUS POSTS, COMENTARIOS, ALBUNES Y FOTOS"
+        );
+
+        switch (ejecutable) {
+            case "1":
+                console.log(await usuarios_tareasP());
+                break;
+            case "2":
+                let nombre = prompt("Ingrese el nombre de la persona a buscar:");
+                console.log(await buscarUsuarioYMostrarAlbumes(nombre));
+                break;
+            case "3":
+                let nombrePost = prompt("Ingrese el nombre del post a buscar:");
+                console.log(await buscarPostsYComentarios(nombrePost));
+                break;
+            case "4":
+                console.log(await filtrarUsuariosNombreTelefono());
+                break;
+            case "5":
+                console.log(await obtenerUsuariosConTodo());
+                break;
+            case "0":
+                alert("Saliendo del programa...");
+                break;
+            default:
+                alert("Ingrese un numero valido");
+                break;
+        }
+    } while (ejecutable !== "0");
+};
+
+// Llamar a la función del menú para que se ejecute automáticamente
+menu();
